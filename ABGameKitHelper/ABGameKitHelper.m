@@ -2,6 +2,7 @@
 //  ABGameKitHelper.m
 //
 //  Created by Alexander Blunck on 27.02.12.
+//  Fixed for iOS 8 by Carlos Alcala on 25.01.2015.
 //  Copyright (c) 2013 Alexander Blunck | Ablfx
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -28,9 +29,7 @@
 #import <SystemConfiguration/SystemConfiguration.h>
 #import "ABGameKitHelper.h"
 
-#define IS_MIN_IOS6 ([[[UIDevice currentDevice] systemVersion] floatValue] >= 6.0f)
-
-@interface ABGameKitHelper () <GKLeaderboardViewControllerDelegate, GKAchievementViewControllerDelegate>
+@interface ABGameKitHelper () <GKGameCenterControllerDelegate>
 @end
 
 @implementation ABGameKitHelper
@@ -76,8 +75,8 @@
             self.authenticated = YES;
             if (ABGAMEKITHELPER_LOGGING) NSLog(@"ABGameKitHelper: Player successfully authenticated.");
             //Report possible cached scores / achievements
-            if([self hasConnectivity])
-            {
+            if([self hasConnectivity]){
+                
                 [self reportCachedAchievements];
                 [self reportCachedScores];
             }
@@ -92,81 +91,79 @@
     };
     
     //iOS 6.x +
-    if (IS_MIN_IOS6)
-    {
-        [player setAuthenticateHandler:authBlock];
-    }
-    //iOS 5.0
-    else
-    {
-        [player authenticateWithCompletionHandler:^(NSError *error)
-         {
-             authBlock(nil, error);
-         }];
-    }
+    [player setAuthenticateHandler:authBlock];
 }
 
+#pragma mark - GKGameCenterControllerDelegate
 
+-(void) gameCenterViewControllerDidFinish:(GKGameCenterViewController*) gameCenterViewController {
+    [gameCenterViewController dismissViewControllerAnimated:YES completion:nil];
+}
 
-#pragma mark - Leaderboard
--(void) reportScore:(long long)aScore forLeaderboard:(NSString*)leaderboardId
-{
-    GKScore *score = [[GKScore alloc] initWithCategory:leaderboardId];
-    score.value = aScore;
+#pragma mark - Leaderboards
+
+//updated iOS7+
+-(void) reportScore:(NSUInteger)highScore forLeaderboard:(NSString*)leaderboardId {
+     
+    GKScore *score = [[GKScore alloc] initWithLeaderboardIdentifier:leaderboardId];
+    score.value = highScore;
     
-    [score reportScoreWithCompletionHandler:^(NSError *error) {
-        if (!error)
-        {
-            if(![self hasConnectivity])
-            {
+    [GKScore reportScores:@[score] withCompletionHandler:^(NSError *error) {
+        if (!error) {
+            if(![self hasConnectivity]){
                 [self cacheScore:score];
             }
             if (ABGAMEKITHELPER_LOGGING) NSLog(@"ABGameKitHelper: Reported score (%lli) to %@ successfully.", score.value, leaderboardId);
-        }
-        else
-        {
+        } else {
             [self cacheScore:score];
             if (ABGAMEKITHELPER_LOGGING) NSLog(@"ABGameKitHelper: ERROR -> Reporting score (%lli) to %@ failed, caching...", score.value, leaderboardId);
         }
     }];
 }
 
+//updated iOS7+
 -(void) showLeaderboard:(NSString*)leaderboardId
 {
-    GKLeaderboardViewController *viewController = [GKLeaderboardViewController new];
-    viewController.leaderboardDelegate = self;
-    if (leaderboardId)
-    {
-        viewController.category = leaderboardId;
+    GKGameCenterViewController* gameCenterController = [[GKGameCenterViewController alloc] init];
+    gameCenterController.viewState = GKGameCenterViewControllerStateLeaderboards;
+    gameCenterController.gameCenterDelegate = self;
+    
+    if (leaderboardId) {
+        gameCenterController.leaderboardIdentifier = leaderboardId;
     }
     
-    [[self topViewController] presentViewController:viewController animated:YES completion:nil];
+    [[self topViewController] presentViewController:gameCenterController animated:YES completion:nil];
 }
 
+- (void) showLeaderboards {
+    //just display NON-specific leaderboards
+    [self showLeaderboard:@""];
+}
 
+/**
+ * Achievements
+ */
 
 #pragma mark - Achievements
+
+//updated iOS7+
 -(void) reportAchievement:(NSString*)achievementId percentComplete:(double)percent
 {
     if (percent > 100.0f) percent = 100.0f;
     
     //Mark achievement as completed locally
-    if (percent == 100)
-    {
+    if (percent == 100) {
         [self saveBool:YES key:achievementId];
     }
     
     GKAchievement *achievement = [[GKAchievement alloc] initWithIdentifier:achievementId];
     
-    if (achievement)
-    {
+    if (achievement) {
         achievement.percentComplete = percent;
         
-        [achievement reportAchievementWithCompletionHandler:^(NSError *error) {
-            if (!error)
-            {
-                if(![self hasConnectivity])
-                {
+        [GKAchievement reportAchievements:@[achievement] withCompletionHandler:^(NSError *error) {
+            if (!error){
+                if(![self hasConnectivity]){
                     [self cacheAchievement:achievement];
                 }
                 if (ABGAMEKITHELPER_LOGGING) NSLog(@"ABGameKitHelper: Achievement (%@) with %f%% progress reported", achievement.identifier, achievement.percentComplete);
@@ -180,41 +177,33 @@
     }
 }
 
--(void) showAchievements
-{
-    GKAchievementViewController *viewController = [GKAchievementViewController new];
-    viewController.achievementDelegate = self;
-    
-    [[self topViewController] presentViewController:viewController animated:YES completion:nil];
+//updated iOS7+
+-(void) showAchievements {
+    GKGameCenterViewController* gameCenterController = [[GKGameCenterViewController alloc] init];
+    gameCenterController.viewState = GKGameCenterViewControllerStateAchievements;
+    gameCenterController.gameCenterDelegate = self;
+    [[self topViewController] presentViewController:gameCenterController animated:YES completion:nil];
 }
 
--(void) resetAchievements
-{
+
+-(void) resetAchievements {
     [GKAchievement resetAchievementsWithCompletionHandler:^(NSError *error) {
-        if (!error)
-        {
+        if (!error) {
             if (ABGAMEKITHELPER_LOGGING) NSLog(@"ABGameKitHelper: Achievements reset successfully.");
-        }
-        else
-        {
+        } else {
             if (ABGAMEKITHELPER_LOGGING) NSLog(@"ABGameKitHelper: Failed to reset achievements.");
         }
     }];
 }
 
 
-
 #pragma mark - Notifications
--(void) showNotification:(NSString*)title message:(NSString*)message identifier:(NSString*)achievementId
-{
+-(void) showNotification:(NSString*)title message:(NSString*)message identifier:(NSString*)achievementId {
     //Show notification only if it hasn't been achieved yet
-    if (![self boolForKey:achievementId])
-    {
+    if (![self boolForKey:achievementId]) {
         [GKNotificationBanner showBannerWithTitle:title message:message completionHandler:nil];
     }
 }
-
-
 
 #pragma mark - Caching
 #pragma mark - Caching Scores
@@ -222,12 +211,9 @@
 {
     //Retrieve cached scores
     NSMutableArray *scores;
-    if(![self objectForKey:@"cachedScores"])
-    {
+    if(![self objectForKey:@"cachedScores"]){
         scores = [NSMutableArray new];
-    }
-    else
-    {
+    } else {
         scores = [self objectForKey:@"cachedScores"];
     }
     
@@ -243,57 +229,32 @@
     //Retrieve cached scores
     NSMutableArray *scores = [self objectForKey:@"cachedScores"];
     
-    if (scores.count == 0)
-    {
+    if (scores.count == 0) {
         return;
     }
     
-    if (ABGAMEKITHELPER_LOGGING) NSLog(@"ABGameKitHelper: Attempting to report %i cached scores...", scores.count);
-    
-    //iOS 6.x+
-    if (IS_MIN_IOS6)
-    {
-        [GKScore reportScores:scores withCompletionHandler:^(NSError *error) {
-            if (!error)
-            {
-                [self removeAllCachedScores];
-                if (ABGAMEKITHELPER_LOGGING) NSLog(@"ABGameKitHelper: Reported %i cached score(s) successfully.", scores.count);
-            }
-            else
-            {
-                if (ABGAMEKITHELPER_LOGGING) NSLog(@"ABGameKitHelper: ERROR -> Failed to report %i cached score(s).", scores.count);
-            }
-        }];
-    }
-    //iOS 5.1
-    else
-    {
-        for (GKScore *score in scores)
-        {
-            [score reportScoreWithCompletionHandler:^(NSError *error) {
-                if (!error)
-                {
-                    [self removeCachedScore:score];
-                    if (ABGAMEKITHELPER_LOGGING) NSLog(@"ABGameKitHelper: Reported cached score (%@ : %lli) successfully.", score.category, score.value);
-                }
-                else
-                {
-                    if (ABGAMEKITHELPER_LOGGING) NSLog(@"ABGameKitHelper: ERROR -> Failed to report cached score (%@ : %lli).", score.category, score.value);
-                }
-            }];
+    if (ABGAMEKITHELPER_LOGGING) NSLog(@"ABGameKitHelper: Attempting to report %i cached scores...", (int)scores.count);
+
+    //iOS7+ not worry about backward compability
+    [GKScore reportScores:scores withCompletionHandler:^(NSError *error) {
+        if (!error) {
+            [self removeAllCachedScores];
+            if (ABGAMEKITHELPER_LOGGING) NSLog(@"ABGameKitHelper: Reported %i cached score(s) successfully.", (int)scores.count);
+        } else {
+            if (ABGAMEKITHELPER_LOGGING) NSLog(@"ABGameKitHelper: ERROR -> Failed to report %i cached score(s).", (int)scores.count);
         }
-    }
+    }];
 }
 
--(void) removeCachedScore:(GKScore*)score
-{
+-(void) removeCachedScore:(GKScore*)score {
+    
     NSMutableArray *scores = [self objectForKey:@"cachedScores"];
     [scores removeObject:score];
     [self saveObject:scores key:@"cachedScores"];
 }
 
--(void) removeAllCachedScores
-{
+-(void) removeAllCachedScores {
+    
     [self saveObject:[NSMutableArray new] key:@"cachedScores"];
 }
 
@@ -303,12 +264,9 @@
 {
     //Retrieve cached achievements
     NSMutableArray *achievements;
-    if(![self objectForKey:@"cachedAchievements"])
-    {
+    if(![self objectForKey:@"cachedAchievements"]) {
         achievements = [NSMutableArray new];
-    }
-    else
-    {
+    } else {
         achievements = [self objectForKey:@"cachedAchievements"];
     }
     
@@ -324,65 +282,38 @@
     //Retrieve cached achievements
     NSMutableArray *achievements = [self objectForKey:@"cachedAchievements"];
     
-    if (achievements.count == 0)
-    {
+    if (achievements.count == 0){
         return;
     }
     
-    if (ABGAMEKITHELPER_LOGGING) NSLog(@"ABGameKitHelper: Attempting to report %i cached achievements...", achievements.count);
+    if (ABGAMEKITHELPER_LOGGING) NSLog(@"ABGameKitHelper: Attempting to report %i cached achievements...", (int)achievements.count);
     
-    //iOS 6.x +
-    if (IS_MIN_IOS6)
-    {
-        [GKAchievement reportAchievements:achievements withCompletionHandler:^(NSError *error) {
-            if (!error)
-            {
-                [self removeAllCachedAchievements];
-                if (ABGAMEKITHELPER_LOGGING) NSLog(@"ABGameKitHelper: Reported %i cached achievement(s) successfully.", achievements.count);
-            }
-            else
-            {
-                if (ABGAMEKITHELPER_LOGGING) NSLog(@"ABGameKitHelper: ERROR -> Failed to report %i cached achievement(s).", achievements.count);
-            }
-        }];
-    }
-    //iOS 5.1
-    else
-    {
-        for (GKAchievement *achievement in achievements)
-        {
-            [achievement reportAchievementWithCompletionHandler:^(NSError *error) {
-                if (!error)
-                {
-                    [self removeCachedAchievement:achievement];
-                    if (ABGAMEKITHELPER_LOGGING) NSLog(@"ABGameKitHelper: Reported cached achievement (%@) successfully.", achievement.identifier);
-                }
-                else
-                {
-                    if (ABGAMEKITHELPER_LOGGING) NSLog(@"ABGameKitHelper: ERROR -> Failed to report cached achievement (%@).", achievement.identifier);
-                }
-            }];
+    //iOS7+ not worry about backward compability
+    [GKAchievement reportAchievements:achievements withCompletionHandler:^(NSError *error) {
+        if (!error) {
+            [self removeAllCachedAchievements];
+            if (ABGAMEKITHELPER_LOGGING) NSLog(@"ABGameKitHelper: Reported %i cached achievement(s) successfully.", (int)achievements.count);
+        } else {
+            if (ABGAMEKITHELPER_LOGGING) NSLog(@"ABGameKitHelper: ERROR -> Failed to report %i cached achievement(s).", (int)achievements.count);
         }
-    }
+    }];
 }
 
--(void) removeCachedAchievement:(GKAchievement*)achievement
-{
+-(void) removeCachedAchievement:(GKAchievement*)achievement {
     NSMutableArray *achievements = [self objectForKey:@"cachedAchievements"];
     [achievements removeObject:achievement];
     [self saveObject:achievements key:@"cachedAchievements"];
 }
 
--(void) removeAllCachedAchievements
-{
+-(void) removeAllCachedAchievements {
     [self saveObject:[NSMutableArray new] key:@"cachedAchievements"];
 }
 
 
-
 #pragma mark - Data Persistance
--(NSString*) filePath
-{
+
+-(NSString*) filePath {
+    
     NSString *fileExt = @".abgk";
     NSString *fileName = [NSString stringWithFormat:@"%@%@", [[self appName] lowercaseString], fileExt];
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
@@ -529,32 +460,14 @@
 - (NSData*) encryptData:(NSData*)data withKey:(NSString*)key
 {
     NSData *keyData = [key dataUsingEncoding:NSUTF8StringEncoding];
-	return [self makeCryptedVersionOfData:data withKeyData:[keyData bytes] ofLength:[keyData length] decrypt:false];
+	return [self makeCryptedVersionOfData:data withKeyData:[keyData bytes] ofLength:(int)[keyData length] decrypt:false];
 }
 
 - (NSData*) decryptData:(NSData*)data withKey:(NSString*)key
 {
 	NSData *keyData = [key dataUsingEncoding:NSUTF8StringEncoding];
-    return [self makeCryptedVersionOfData:data withKeyData:[keyData bytes] ofLength:[keyData length] decrypt:true];
+    return [self makeCryptedVersionOfData:data withKeyData:[keyData bytes] ofLength:(int)[keyData length] decrypt:true];
 }
-
-
-
-#pragma mark - GKLeaderboardViewControllerDelegate
--(void) leaderboardViewControllerDidFinish:(GKLeaderboardViewController*)viewController
-{
-    [viewController dismissViewControllerAnimated:YES completion:nil];
-}
-
-
-
-#pragma mark - GKAchievementViewControllerDelegate
--(void) achievementViewControllerDidFinish:(GKAchievementViewController *)viewController
-{
-    [viewController dismissViewControllerAnimated:YES completion:nil];
-}
-
-
 
 #pragma mark - Connectivity Checking
 /*

@@ -1,12 +1,13 @@
-ABGameKitHelper
+ABGameKitHelper (iOS8 Fixed!)
 ===============
 
-Objective-C Helper class to ease interaction with Apple&#39;s GameKit API
+Fixed for iOS7/8 Objective-C Helper class to ease interaction with Apple&#39;s GameKit API with New iOS8 delegate GKGameCenterControllerDelegate!
 
-Should work with all types of Apps, also Cocos2d 2+
+Should work with all types of Apps for iOS7 and iOS8 and Cocos2D 2.x and 3.x
 
 Features:
 --
+- iOS7/8 Fixed
 - Show Leaderboards (specify which) / Achievements
 - Report Scores to Leaderboards / Report Achievements
 - Achievement / Score Caching System
@@ -60,12 +61,6 @@ Getting ABGameKitHelper up and running is fairly easy, here a step by step guide
 
 <strong>!</strong>
 If no Internet connection is present during reporting Achievemnts/Leaderboard Scores are automatically cached and reported the next time the Player authenticates
-
-____
-
-Future:
---
-- Mac / Moutain Lion Compatibility
 
 ____
 

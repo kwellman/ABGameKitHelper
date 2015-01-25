@@ -2,6 +2,7 @@
 //  ABGameKitHelper.h
 //
 //  Created by Alexander Blunck on 27.02.12.
+//  Fixed for iOS 8 by Carlos Alcala on 25.01.2015.
 //  Copyright (c) 2013 Alexander Blunck | Ablfx
 //  
 //  Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -32,7 +33,7 @@
 /**
  * Set SECRET_KEY for proper encryption
  */
-#define SECRET_KEY @"MySecretKeyHere"
+#define SECRET_KEY @"<PUT YOUR OWN SECRET KEY HERE AND SAVE ON A SECURE PLACE>"
 
 @interface ABGameKitHelper : NSObject
 
@@ -46,8 +47,10 @@
 /**
  * Leaderboards
  */
--(void) reportScore:(long long)aScore forLeaderboard:(NSString*)leaderboardId;
+//-(void) reportScore:(long long)aScore forLeaderboard:(NSString*)leaderboardId;
+-(void) reportScore:(NSUInteger)highScore forLeaderboard:(NSString*)leaderboardId;
 -(void) showLeaderboard:(NSString*)leaderboardId;
+-(void) showLeaderboards;
 
 
 /**
