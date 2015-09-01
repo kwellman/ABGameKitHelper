@@ -146,8 +146,12 @@
 
 #pragma mark - Achievements
 
+-(void) reportAchievement:(NSString*)achievementId percentComplete:(double)percent {
+    [self reportAchievement:achievementId percentComplete:percent shouldDisplayNotification:NO];
+}
+
 //updated iOS7+
--(void) reportAchievement:(NSString*)achievementId percentComplete:(double)percent
+-(void) reportAchievement:(NSString*)achievementId percentComplete:(double)percent shouldDisplayNotification:(BOOL)displayNotification
 {
     if (percent > 100.0f) percent = 100.0f;
     
@@ -159,6 +163,9 @@
     GKAchievement *achievement = [[GKAchievement alloc] initWithIdentifier:achievementId];
     
     if (achievement) {
+        if (displayNotification == YES) achievement.showsCompletionBanner = YES;
+        else achievement.showsCompletionBanner = NO;
+        
         achievement.percentComplete = percent;
         
         [GKAchievement reportAchievements:@[achievement] withCompletionHandler:^(NSError *error) {
